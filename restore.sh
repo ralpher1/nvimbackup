@@ -3,9 +3,31 @@ set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 NVIM_CONFIG="$HOME/.config/nvim"
-TMPINIT="$(mktemp /tmp/packer-bootstrap-XXXXXX.lua)"
+PLUGIN_DIR="$HOME/.local/share/nvim/site/pack/packer/start"
+TMPINIT="$(mktemp /tmp/nvim-restore-XXXXXX.lua)"
+trap 'rm -f "$TMPINIT"' EXIT
 
 echo "==> Restoring Neovim config from $REPO_DIR"
+
+# ── 0. Check / install prerequisites ──
+missing=()
+command -v nvim  >/dev/null 2>&1 || missing+=("neovim")
+command -v git   >/dev/null 2>&1 || missing+=("git")
+command -v rsync >/dev/null 2>&1 || missing+=("rsync")
+command -v cc    >/dev/null 2>&1 || missing+=("build-essential")
+command -v node  >/dev/null 2>&1 || missing+=("nodejs npm")
+
+if [ ${#missing[@]} -gt 0 ]; then
+  echo "==> Missing packages: ${missing[*]}"
+  echo "    Installing via apt..."
+  sudo apt-get update -qq && sudo apt-get install -y -qq ${missing[*]}
+fi
+
+# tree-sitter CLI is needed by nvim-treesitter to compile parsers
+if ! command -v tree-sitter >/dev/null 2>&1; then
+  echo "==> Installing tree-sitter CLI..."
+  npm install -g tree-sitter-cli 2>&1
+fi
 
 # ── 1. Restore config files ──
 if [ ! -d "$REPO_DIR/config/nvim" ]; then
@@ -18,18 +40,39 @@ mkdir -p "$NVIM_CONFIG"
 rsync -av --delete "$REPO_DIR/config/nvim/" "$NVIM_CONFIG/"
 echo "==> Config restored to $NVIM_CONFIG"
 
-# ── 2. Install Packer if missing ──
-PACKER_DIR="$HOME/.local/share/nvim/site/pack/packer/start/packer.nvim"
-if [ ! -d "$PACKER_DIR" ]; then
-  echo "==> Installing Packer..."
-  git clone --depth 1 https://github.com/wbthomason/packer.nvim "$PACKER_DIR"
-else
-  echo "==> Packer already installed"
-fi
+# ── 2. Clone all plugins directly ──
+declare -A PLUGINS=(
+  [packer.nvim]="wbthomason/packer.nvim"
+  [material.nvim]="marko-cerovac/material.nvim"
+  [lualine.nvim]="nvim-lualine/lualine.nvim"
+  [plenary.nvim]="nvim-lua/plenary.nvim"
+  [telescope.nvim]="nvim-telescope/telescope.nvim"
+  [nvim-treesitter]="nvim-treesitter/nvim-treesitter"
+  [nvim-lspconfig]="neovim/nvim-lspconfig"
+  [mason.nvim]="williamboman/mason.nvim"
+  [mason-lspconfig.nvim]="williamboman/mason-lspconfig.nvim"
+  [nvim-cmp]="hrsh7th/nvim-cmp"
+  [cmp-nvim-lsp]="hrsh7th/cmp-nvim-lsp"
+  [LuaSnip]="L3MON4D3/LuaSnip"
+  [cmp_luasnip]="saadparwaiz1/cmp_luasnip"
+  [copilot.vim]="github/copilot.vim"
+)
 
-# ── 3. PackerSync with a minimal init (skips real init.lua) ──
-# The real init.lua requires plugins that don't exist yet, so we
-# write a temp init that ONLY runs the packer block.
+mkdir -p "$PLUGIN_DIR"
+echo "==> Installing plugins..."
+for name in "${!PLUGINS[@]}"; do
+  repo="${PLUGINS[$name]}"
+  target="$PLUGIN_DIR/$name"
+  if [ -d "$target" ]; then
+    echo "    $name — already installed"
+  else
+    echo "    $name — cloning..."
+    git clone --depth 1 "https://github.com/$repo.git" "$target" 2>&1
+  fi
+done
+echo "==> All plugins installed"
+
+# ── 3. Generate packer_compiled.lua ──
 cat > "$TMPINIT" <<'LUAEOF'
 vim.cmd [[packadd packer.nvim]]
 require('packer').startup(function(use)
@@ -48,32 +91,27 @@ require('packer').startup(function(use)
   use 'saadparwaiz1/cmp_luasnip'
   use 'github/copilot.vim'
 end)
-vim.api.nvim_create_autocmd('User', {
-  pattern = 'PackerComplete',
-  callback = function() vim.cmd('quitall') end,
-})
-vim.cmd('PackerSync')
 LUAEOF
-
-echo "==> Installing plugins via PackerSync (this may take a minute)..."
-nvim -u "$TMPINIT" --headless 2>&1 || true
-rm -f "$TMPINIT"
-echo "==> Plugins installed"
+echo "==> Compiling packer..."
+nvim -u "$TMPINIT" --headless -c 'PackerCompile' -c 'quitall' 2>&1 || true
 
 # ── 4. Install Treesitter parsers ──
-# Now all plugins exist, so init.lua loads without errors.
 if [ -f "$REPO_DIR/treesitter-parsers.txt" ]; then
   PARSERS=$(paste -sd' ' "$REPO_DIR/treesitter-parsers.txt")
   echo "==> Installing Treesitter parsers: $PARSERS"
-  nvim --headless -c "TSInstallSync $PARSERS" -c 'quitall' 2>&1 || true
+  echo "" > "$TMPINIT"
+  nvim -u "$TMPINIT" --headless -c "TSInstall $PARSERS" -c 'sleep 60' -c 'quitall' 2>&1 || true
   echo "==> Treesitter parsers installed"
 fi
 
 # ── 5. Install Mason packages ──
 if [ -f "$REPO_DIR/mason-packages.txt" ]; then
   PKGS=$(paste -sd' ' "$REPO_DIR/mason-packages.txt")
+  cat > "$TMPINIT" <<'LUAEOF'
+require('mason').setup()
+LUAEOF
   echo "==> Installing Mason packages: $PKGS"
-  nvim --headless -c "MasonInstall $PKGS" -c 'sleep 60' -c 'quitall' 2>&1 || true
+  nvim -u "$TMPINIT" --headless -c "MasonInstall $PKGS" -c 'sleep 120' -c 'quitall' 2>&1 || true
   echo "==> Mason packages installed"
 fi
 

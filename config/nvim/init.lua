@@ -39,10 +39,12 @@ vim.o.completeopt = 'menuone,noselect'
 require('lualine').setup { options = { theme = 'material' } }
 vim.cmd('colorscheme material-palenight')
 
-require('nvim-treesitter.configs').setup {
-  ensure_installed = { 'lua','python','java','go','rust','c','typescript','tsx' },
-  highlight = { enable = true },
-}
+-- Treesitter: enable highlighting for all buffers
+vim.api.nvim_create_autocmd('FileType', {
+  callback = function()
+    pcall(vim.treesitter.start)
+  end,
+})
 
 -- Completion
 local cmp = require('cmp')

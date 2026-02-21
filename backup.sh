@@ -22,8 +22,12 @@ else
 fi
 
 # ── Treesitter installed parsers list ──
-TS_PARSER_DIR="$HOME/.local/share/nvim/site/pack/packer/start/nvim-treesitter/parser"
-if [ -d "$TS_PARSER_DIR" ]; then
+# New nvim-treesitter installs parsers to site/parser/, old versions used plugin dir
+TS_PARSER_DIR="$HOME/.local/share/nvim/site/parser"
+if [ ! -d "$TS_PARSER_DIR" ]; then
+  TS_PARSER_DIR="$HOME/.local/share/nvim/site/pack/packer/start/nvim-treesitter/parser"
+fi
+if [ -d "$TS_PARSER_DIR" ] && [ "$(ls -1 "$TS_PARSER_DIR" 2>/dev/null | wc -l)" -gt 0 ]; then
   ls -1 "$TS_PARSER_DIR" | sed 's/\.so$//' > "$REPO_DIR/treesitter-parsers.txt"
   echo "==> Saved Treesitter parser list ($(wc -l < "$REPO_DIR/treesitter-parsers.txt") parsers)"
 else

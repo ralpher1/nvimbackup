@@ -1,8 +1,1 @@
-c
-go
-java
 lua
-python
-rust
-tsx
-typescript
