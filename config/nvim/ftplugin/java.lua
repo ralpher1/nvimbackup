@@ -1,0 +1,1 @@
+-- Java LSP is configured via FileType autocmd in init.lua

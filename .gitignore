@@ -1,0 +1,6 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Packer compiled (regenerated on sync)
+config/nvim/plugin/packer_compiled.lua
