@@ -16,11 +16,28 @@ command -v git   >/dev/null 2>&1 || missing+=("git")
 command -v rsync >/dev/null 2>&1 || missing+=("rsync")
 command -v cc    >/dev/null 2>&1 || missing+=("build-essential")
 command -v node  >/dev/null 2>&1 || missing+=("nodejs npm")
+command -v cmake >/dev/null 2>&1 || missing+=("cmake")
+command -v pip3  >/dev/null 2>&1 || missing+=("python3-pip")
+command -v python3 >/dev/null 2>&1 || missing+=("python3-dev python3-venv")
+command -v java  >/dev/null 2>&1 || missing+=("openjdk-21-jdk")
+command -v go    >/dev/null 2>&1 || missing+=("golang-go")
+command -v lua   >/dev/null 2>&1 || missing+=("lua5.4 liblua5.4-dev luarocks")
+command -v clangd >/dev/null 2>&1 || missing+=("clangd")
+command -v unzip >/dev/null 2>&1 || missing+=("unzip")
+command -v rg    >/dev/null 2>&1 || missing+=("ripgrep")
 
 if [ ${#missing[@]} -gt 0 ]; then
   echo "==> Missing packages: ${missing[*]}"
   echo "    Installing via apt..."
   sudo apt-get update -qq && sudo apt-get install -y -qq ${missing[*]}
+fi
+
+# Rust (needed for rust-analyzer LSP)
+if ! command -v rustc >/dev/null 2>&1; then
+  echo "==> Installing Rust via rustup..."
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y 2>&1
+  # shellcheck disable=SC1091
+  . "$HOME/.cargo/env"
 fi
 
 # tree-sitter CLI is needed by nvim-treesitter to compile parsers

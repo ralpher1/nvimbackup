@@ -64,7 +64,7 @@ cmp.setup({
 -- ─────────────────────────────────────────────
 require('mason').setup()
 require('mason-lspconfig').setup({
-  ensure_installed = { 'pyright','clangd','ts_ls','rust_analyzer','gopls' }, -- ← no 'jdtls'
+  ensure_installed = { 'pyright','ts_ls','rust_analyzer','gopls' }, -- clangd uses system package (Mason unsupported on aarch64)
   automatic_installation = false,
   automatic_enable = false,
 })
@@ -147,7 +147,7 @@ vim.api.nvim_create_autocmd('FileType', {
       name = 'jdtls',
       cmd = {
         '/home/ubuntu/.local/share/nvim/mason/bin/jdtls',
-        '--java-executable', '/usr/lib/jvm/java-21-openjdk-amd64/bin/java',
+        '--java-executable', '/usr/lib/jvm/java-21-openjdk-arm64/bin/java',
       },
       root_dir = root_pattern('pom.xml', 'gradlew', 'mvnw', '.git')(vim.api.nvim_buf_get_name(args.buf)),
       capabilities = capabilities,
